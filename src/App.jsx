@@ -50,7 +50,7 @@ export default function App() {
   const [toast, setToast] = useState('')
   const [formType, setFormType] = useState('飲食')
   const [questions, setQuestions] = useState([...DEFAULT_QUESTIONS['飲食']])
-  const [formData, setFormData] = useState({ title: '', lang: '英語', date: '', count: '1名', desc: '', perk: '' })
+  const [formData, setFormData] = useState({ title: '', venueName: '', area: '', lang: '英語', date: '', count: '1名', desc: '', perk: '' })
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
@@ -135,18 +135,27 @@ export default function App() {
 
   const submitMission = async () => {
     if (!formData.title) { showToast('タイトルを入力してください'); return }
+    if (!formData.venueName) { showToast('店舗名を入力してください'); return }
 
     let clientId = client?.id
     if (!clientId) {
       const { data: newClient, error: clientError } = await supabase.from('clients').insert({
         profile_id: session.user.id,
-        venue_name: profile?.display_name || '未設定',
+        venue_name: formData.venueName,
         venue_type: formType,
-        area: '未設定',
+        area: formData.area || '未設定',
       }).select().single()
       if (clientError) { showToast('クライアント情報の作成に失敗しました'); return }
       setClient(newClient)
       clientId = newClient.id
+    } else {
+      // 店舗名とエリアを更新
+      await supabase.from('clients').update({
+        venue_name: formData.venueName,
+        venue_type: formType,
+        area: formData.area || client.area,
+      }).eq('id', clientId)
+      setClient({ ...client, venue_name: formData.venueName, area: formData.area || client.area })
     }
 
     const { error } = await supabase.from('missions').insert({
@@ -164,7 +173,7 @@ export default function App() {
     if (error) { showToast('エラーが発生しました: ' + error.message); return }
     showToast('案件を登録しました')
     setShowForm(false)
-    setFormData({ title: '', lang: '英語', date: '', count: '1名', desc: '', perk: '' })
+    setFormData({ title: '', venueName: '', area: '', lang: '英語', date: '', count: '1名', desc: '', perk: '' })
     setQuestions([...DEFAULT_QUESTIONS['飲食']])
     loadMissions()
   }
@@ -270,8 +279,19 @@ export default function App() {
               <div style={{ background: '#FFF', border: '1px solid #EBEBEB', borderRadius: 12, padding: 20, marginBottom: 20 }}>
                 <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>案件を登録する</div>
 
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+                  <div>
+                    <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>店舗名 *</label>
+                    <input value={formData.venueName} onChange={e => setFormData({ ...formData, venueName: e.target.value })} placeholder="例：田中鮨 難波店" style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>エリア</label>
+                    <input value={formData.area} onChange={e => setFormData({ ...formData, area: e.target.value })} placeholder="例：難波" style={inputStyle} />
+                  </div>
+                </div>
+
                 <div style={{ marginBottom: 14 }}>
-                  <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>タイトル</label>
+                  <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>案件タイトル *</label>
                   <input value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} placeholder="例：英語メニュー・接客の評価" style={inputStyle} />
                 </div>
 
