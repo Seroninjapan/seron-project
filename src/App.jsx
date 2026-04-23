@@ -51,6 +51,8 @@ export default function App() {
   const [formType, setFormType] = useState('飲食')
   const [questions, setQuestions] = useState([...DEFAULT_QUESTIONS['飲食']])
   const [formData, setFormData] = useState({ title: '', venueName: '', area: '', lang: '英語', date: '', count: '1名', desc: '', perk: '' })
+  const [formImages, setFormImages] = useState([])
+  const [uploadingImages, setUploadingImages] = useState(false)
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
@@ -168,14 +170,45 @@ export default function App() {
       monitor_count: parseInt(formData.count) || 1,
       preferred_date: formData.date,
       perk: formData.perk || `Free ${formType === '宿泊' ? '1-night stay' : 'dining'}`,
+      images: formImages,
       status: '審査中',
     })
     if (error) { showToast('エラーが発生しました: ' + error.message); return }
     showToast('案件を登録しました')
     setShowForm(false)
     setFormData({ title: '', venueName: '', area: '', lang: '英語', date: '', count: '1名', desc: '', perk: '' })
+    setFormImages([])
     setQuestions([...DEFAULT_QUESTIONS['飲食']])
     loadMissions()
+  }
+
+  const handleImageUpload = async (e) => {
+    const files = Array.from(e.target.files)
+    if (formImages.length + files.length > 5) {
+      showToast('画像は最大5枚までです')
+      return
+    }
+    setUploadingImages(true)
+    const uploaded = []
+    for (const file of files) {
+      const ext = file.name.split('.').pop()
+      const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${ext}`
+      const { data, error } = await supabase.storage
+        .from('mission-images')
+        .upload(fileName, file)
+      if (!error) {
+        const { data: urlData } = supabase.storage
+          .from('mission-images')
+          .getPublicUrl(fileName)
+        uploaded.push(urlData.publicUrl)
+      }
+    }
+    setFormImages([...formImages, ...uploaded])
+    setUploadingImages(false)
+  }
+
+  const removeImage = (idx) => {
+    setFormImages(formImages.filter((_, i) => i !== idx))
   }
 
   const signInWithGoogle = async () => {
@@ -326,6 +359,26 @@ export default function App() {
                 <div style={{ marginBottom: 14 }}>
                   <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>特典内容</label>
                   <input value={formData.perk} onChange={e => setFormData({ ...formData, perk: e.target.value })} placeholder="例：Free dining for 2" style={inputStyle} />
+                </div>
+
+                {/* Image Upload */}
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>店舗・施設の画像（最大5枚）</label>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                    {formImages.map((url, idx) => (
+                      <div key={idx} style={{ position: 'relative', width: 72, height: 72 }}>
+                        <img src={url} style={{ width: 72, height: 72, borderRadius: 8, objectFit: 'cover', border: '1px solid #DDD' }} />
+                        <button onClick={() => removeImage(idx)} style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: '#E74C3C', color: 'white', border: 'none', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                      </div>
+                    ))}
+                    {formImages.length < 5 && (
+                      <label style={{ width: 72, height: 72, borderRadius: 8, border: '1px dashed #CCC', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: '#F8F8F6', fontSize: 11, color: '#999', gap: 4 }}>
+                        {uploadingImages ? '...' : <><span style={{ fontSize: 20 }}>+</span><span>追加</span></>}
+                        <input type="file" accept="image/*" multiple onChange={handleImageUpload} style={{ display: 'none' }} disabled={uploadingImages} />
+                      </label>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#999' }}>{formImages.length}/5枚</div>
                 </div>
 
                 {/* Questions */}
