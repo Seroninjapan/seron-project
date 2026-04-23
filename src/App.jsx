@@ -135,19 +135,33 @@ export default function App() {
 
   const submitMission = async () => {
     if (!formData.title) { showToast('タイトルを入力してください'); return }
+
+    let clientId = client?.id
+    if (!clientId) {
+      const { data: newClient, error: clientError } = await supabase.from('clients').insert({
+        profile_id: session.user.id,
+        venue_name: profile?.display_name || '未設定',
+        venue_type: formType,
+        area: '未設定',
+      }).select().single()
+      if (clientError) { showToast('クライアント情報の作成に失敗しました'); return }
+      setClient(newClient)
+      clientId = newClient.id
+    }
+
     const { error } = await supabase.from('missions').insert({
-      client_id: client.id,
+      client_id: clientId,
       title: formData.title,
       description: formData.desc,
       venue_type: formType,
       required_languages: [formData.lang],
       questions: questions,
-      monitor_count: parseInt(formData.count),
+      monitor_count: parseInt(formData.count) || 1,
       preferred_date: formData.date,
       perk: formData.perk || `Free ${formType === '宿泊' ? '1-night stay' : 'dining'}`,
       status: '審査中',
     })
-    if (error) { showToast('エラーが発生しました'); return }
+    if (error) { showToast('エラーが発生しました: ' + error.message); return }
     showToast('案件を登録しました')
     setShowForm(false)
     setFormData({ title: '', lang: '英語', date: '', count: '1名', desc: '', perk: '' })
